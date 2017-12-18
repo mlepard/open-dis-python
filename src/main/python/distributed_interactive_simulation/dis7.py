@@ -1766,6 +1766,7 @@ class EEFundamentalParameterData( object ):
         """ Average repetition frequency of the emission in hertz."""
         self.pulseWidth = 0
         """ Average pulse width  of the emission in microseconds."""
+        self.length = 40
 
     def serialize(self, outputStream):
         """serialize the class """
@@ -2257,6 +2258,10 @@ class BeamData( object ):
     """Describes the scan volue of an emitter beam. Section 6.2.11."""
 
     def __init__(self):
+        self.beamNumber = 0
+        self.beamParameterIndex = 0
+        self.fundamentalParameterData = EEFundamentalParameterData()
+    
         """ Initializer for BeamData"""
         self.beamAzimuthCenter = 0
         """ Specifies the beam azimuth an elevation centers and corresponding half-angles to describe the scan volume"""
@@ -2268,14 +2273,37 @@ class BeamData( object ):
         """ Specifies the beam elevation sweep to determine scan volume"""
         self.beamSweepSync = 0
         """ allows receiver to synchronize its regenerated scan pattern to that of the emmitter. Specifies the percentage of time a scan is through its pattern from its origion."""
-
+        
+        self.beamFunction = 0
+        self.numTargets = 0
+        self.trackJam = 0
+        self.beamStatus = 0
+        self.jammingTechniqueKind = 0;
+        self.jammingTechniqueCategory = 0;
+        self.jammingTechniqueSubCategory = 0;
+        self.jammingTechniqueSpecific = 0;
+        
+        self.length = 104
+        
     def serialize(self, outputStream):
         """serialize the class """
+        outputStream.write_unsigned_byte(self.length);
+        outputStream.write_unsigned_byte(self.beamNumber);
+        outputStream.write_unsigned_short(self.beamParameterIndex);
+        self.fundamentalParameterData.serialize(outputStream);
         outputStream.write_float(self.beamAzimuthCenter);
         outputStream.write_float(self.beamAzimuthSweep);
         outputStream.write_float(self.beamElevationCenter);
         outputStream.write_float(self.beamElevationSweep);
         outputStream.write_float(self.beamSweepSync);
+        outputStream.write_unsigned_byte(self.beamFunction);
+        outputStream.write_unsigned_byte(self.numTargets);
+        outputStream.write_unsigned_byte(self.trackJam);
+        outputStream.write_unsigned_byte(self.beamStatus);
+        outputStream.write_unsigned_byte(self.jammingTechniqueKind);
+        outputStream.write_unsigned_byte(self.jammingTechniqueCategory);
+        outputStream.write_unsigned_byte(self.jammingTechniqueSubCategory);
+        outputStream.write_unsigned_byte(self.jammingTechniqueSpecific);
 
 
     def parse(self, inputStream):
@@ -3895,6 +3923,8 @@ class EmitterSystem( object ):
     """This field shall specify information about a particular emitter system. Section 6.2.23."""
 
     def __init__(self):
+        self.beams = []
+            
         """ Initializer for EmitterSystem"""
         self.emitterName = 0
         """ Name of the emitter, 16 bit enumeration"""
@@ -3902,12 +3932,25 @@ class EmitterSystem( object ):
         """ function of the emitter, 8 bit enumeration"""
         self.emitterIDNumber = 0
         """ emitter ID, 8 bit enumeration"""
+        
+        self.location = Vector3Float(); 
+        
+    def getLength(self) :
+        return 40 + len(self.beams) * 104;
 
     def serialize(self, outputStream):
         """serialize the class """
+        outputStream.write_unsigned_byte( self.getLength() );
+        outputStream.write_unsigned_byte( len(self.beams) );
+        outputStream.write_unsigned_short(0);
         outputStream.write_unsigned_short(self.emitterName);
         outputStream.write_unsigned_byte(self.emitterFunction);
         outputStream.write_unsigned_byte(self.emitterIDNumber);
+        self.location.serialize(outputStream);
+        
+        for anObj in self.beams:
+            anObj.serialize(outputStream)
+
 
 
     def parse(self, inputStream):
@@ -5399,38 +5442,27 @@ class ElectronicEmissionsPdu( DistributedEmissionsFamilyPdu ):
         self.eventID = EventIdentifier();
         """ ID of event"""
         self.stateUpdateIndicator = 0
-        """ This field shall be used to indicate if the data in the PDU represents a state update or just data that has changed since issuance of the last Electromagnetic Emission PDU [relative to the identified entity and emission system(s)]."""
-        self.numberOfSystems = 0
         """ This field shall specify the number of emission systems being described in the current PDU."""
         self.paddingForEmissionsPdu = 0
         """ padding"""
-        self.systemDataLength = 0
-        """  this field shall specify the length of this emitter system's data in 32-bit words."""
-        self.numberOfBeams = 0
-        """ the number of beams being described in the current PDU for the emitter system being described. """
-        self.emitterSystem = EmitterSystem();
-        """  information about a particular emitter system and shall be represented by an Emitter System record (see 6.2.23)."""
-        self.location = Vector3Float();
-        """ the location of the antenna beam source with respect to the emitting entity's coordinate system. This location shall be the origin of the emitter coordinate system that shall have the same orientation as the entity coordinate system. This field shall be represented by an Entity Coordinate Vector record see 6.2.95 """
         self.systems = []
         """ Electronic emmissions systems THIS IS WRONG. It has the WRONG class type and will cause problems in any marshalling."""
         self.pduType = 23
         """ initialize value """
-        self.paddingForEmissionsPdu = 0
-        """ initialize value """
 
     def serialize(self, outputStream):
         """serialize the class """
+        tempLength = 54
+        for anObj in self.systems:
+            tempLength = tempLength + anObj.getLength();
+
+        self.length = tempLength
         super( ElectronicEmissionsPdu, self ).serialize(outputStream)
         self.emittingEntityID.serialize(outputStream)
         self.eventID.serialize(outputStream)
         outputStream.write_unsigned_byte(self.stateUpdateIndicator);
         outputStream.write_unsigned_byte( len(self.systems));
-        outputStream.write_unsigned_short(self.paddingForEmissionsPdu);
-        outputStream.write_unsigned_byte(self.systemDataLength);
-        outputStream.write_unsigned_byte(self.numberOfBeams);
-        self.emitterSystem.serialize(outputStream)
-        self.location.serialize(outputStream)
+        outputStream.write_unsigned_short(0);
         for anObj in self.systems:
             anObj.serialize(outputStream)
 
